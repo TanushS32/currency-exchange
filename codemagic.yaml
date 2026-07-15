@@ -1,31 +1,29 @@
 workflows:
-  ios-workflow:
-    name: Currency Exchange - iOS
+  ios-unsigned-workflow:
+    name: Currency Exchange - iOS (unsigned, for AltStore sideloading)
     max_build_duration: 60
     environment:
       flutter: stable
       xcode: latest
       cocoapods: default
-      ios_signing:
-        distribution_type: ad_hoc
-        bundle_identifier: com.tanush.exchange.exchangeApp
-      groups:
-        - app_store_credentials
     scripts:
-      - name: Set up code signing settings on Xcode project
+      - name: Add iOS platform files (generated here since it wasn't run locally)
         script: |
-          xcode-project use-profiles
+          flutter create --platforms=ios --org com.tanush.exchange .
       - name: Get Flutter packages
         script: |
           flutter packages pub get
-      - name: Flutter build ipa
+      - name: Build unsigned iOS app
         script: |
-          flutter build ipa --release \
-            --export-options-plist=/Users/builder/export_options.plist
+          flutter build ios --release --no-codesign
+      - name: Package into an unsigned .ipa
+        script: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r app-unsigned.ipa Payload
     artifacts:
-      - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
-      - flutter_drive.log
+      - build/ios/iphoneos/app-unsigned.ipa
     publishing:
       email:
         recipients:
