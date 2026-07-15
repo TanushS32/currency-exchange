@@ -1,0 +1,35 @@
+workflows:
+  ios-workflow:
+    name: Currency Exchange - iOS
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: com.tanush.exchange.exchangeApp
+      groups:
+        - app_store_credentials
+    scripts:
+      - name: Set up code signing settings on Xcode project
+        script: |
+          xcode-project use-profiles
+      - name: Get Flutter packages
+        script: |
+          flutter packages pub get
+      - name: Flutter build ipa
+        script: |
+          flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      email:
+        recipients:
+          - tanushgowd32@gmail.com
+        notify:
+          success: true
+          failure: true
