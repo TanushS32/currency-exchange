@@ -1,14 +1,15 @@
-import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:gal/gal.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../calculator.dart';
 import '../models.dart';
 import '../theme.dart';
+import '../web_download_stub.dart' if (dart.library.html) '../web_download_web.dart';
 import '../widgets/receipt_widget.dart';
 
 class PreviewScreen extends StatefulWidget {
@@ -34,24 +35,26 @@ class _PreviewScreenState extends State<PreviewScreen> {
   ReceiptStyle _style = ReceiptStyle.ledger;
   bool _busy = false;
 
-  Future<File> _captureFile() async {
+  Future<Uint8List> _captureBytes() async {
     // pixelRatio 2 mirrors the desktop app's html2canvas capture (scale: 2)
     // so exported images come out at the same resolution/crispness.
     final bytes = await _screenshotController.capture(pixelRatio: 2);
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/exchange-summary-${DateTime.now().millisecondsSinceEpoch}.png');
-    await file.writeAsBytes(bytes!);
-    return file;
+    return bytes!;
   }
 
   Future<void> _saveToGallery() async {
     setState(() => _busy = true);
     try {
-      final file = await _captureFile();
-      await Gal.putImage(file.path, album: 'Currency Exchange');
+      final bytes = await _captureBytes();
+      if (kIsWeb) {
+        // Browsers have no gallery API — this triggers a normal file download.
+        downloadBytesOnWeb(bytes, 'exchange-summary-${DateTime.now().millisecondsSinceEpoch}.png');
+      } else {
+        await Gal.putImageBytes(bytes, album: 'Currency Exchange', name: 'exchange-summary');
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Saved to Photos')),
+          SnackBar(content: Text(kIsWeb ? 'Downloaded' : 'Saved to Photos')),
         );
       }
     } catch (e) {
@@ -68,8 +71,9 @@ class _PreviewScreenState extends State<PreviewScreen> {
   Future<void> _share() async {
     setState(() => _busy = true);
     try {
-      final file = await _captureFile();
-      await Share.shareXFiles([XFile(file.path)]);
+      final bytes = await _captureBytes();
+      final file = XFile.fromData(bytes, name: 'exchange-summary.png', mimeType: 'image/png');
+      await Share.shareXFiles([file]);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -149,7 +153,7 @@ class _PreviewScreenState extends State<PreviewScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _busy ? null : _saveToGallery,
                   icon: const Icon(Icons.download_rounded),
-                  label: const Text('Save'),
+                  label: Text(kIsWeb ? 'Download' : 'Save'),
                 ),
               ),
               const SizedBox(width: 12),
